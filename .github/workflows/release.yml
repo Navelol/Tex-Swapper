@@ -51,13 +51,34 @@ jobs:
           echo "Changelog:"
           cat changelog.txt
 
+      # ── Prepend quickstart to the changelog ───────────────────────
+      - name: Build release body
+        run: |
+          cat > release_body.txt << 'EOF'
+          ## Quickstart
+
+          1. Download `Texture_Swap_v${{ steps.version.outputs.VERSION }}.py` below
+          2. In Blender: **Edit → Preferences → Add-ons → Install** → select the file → enable it
+          3. Press `N` in the 3D Viewport and open the **Texture Swap** tab
+          4. Click **Add Mesh Slot** → pick your mesh and material
+          5. Click **Add Node** → enter your Image Texture node's label and point it at a folder of images
+          6. Set **Frames per Swap** and **Start Frame**, then hit **Apply Texture Swap**
+          7. Scrub or play the timeline — your textures will swap automatically
+
+          **Tip:** Set a label on a node in the Shader Editor by pressing `F2` or double-clicking the node header. You can use that label directly in the addon instead of the internal node name.
+          ---
+
+          ## Changes
+          EOF
+          cat changelog.txt >> release_body.txt
+
       # ── Create the GitHub Release and attach the .py file ──────────
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
           name: "v${{ steps.version.outputs.VERSION }}"
           tag_name: ${{ github.ref_name }}
-          body_path: changelog.txt
+          body_path: release_body.txt
           files: |
             Texture_Swap_v${{ steps.version.outputs.VERSION }}.py
           draft: false
