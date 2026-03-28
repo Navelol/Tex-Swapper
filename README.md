@@ -14,7 +14,7 @@ A Blender addon that animates texture swaps across multiple meshes and materials
 - **Adjustable timing** — set frames per swap and start frame globally
 - **Optional timeline shortening** — automatically trim the scene end frame to match the last swap
 
-![ezgif-860270105c3e6752](https://github.com/user-attachments/assets/4a699d72-3e20-4fc9-836b-9c436b92ad44)
+<img src="https://github.com/user-attachments/assets/4a699d72-3e20-4fc9-836b-9c436b92ad44" width="600" alt="demo">
 
 ---
 
