@@ -14,6 +14,8 @@ A Blender addon that animates texture swaps across multiple meshes and materials
 - **Adjustable timing** — set frames per swap and start frame globally
 - **Optional timeline shortening** — automatically trim the scene end frame to match the last swap
 
+![ezgif-860270105c3e6752](https://github.com/user-attachments/assets/4a699d72-3e20-4fc9-836b-9c436b92ad44)
+
 ---
 
 ## Requirements
@@ -76,6 +78,8 @@ Click **Apply Texture Swap**. Scrub or play the timeline — textures will swap 
 | 3 | `CharacterEyes` | `Eyes` | `eye_tex` | `/textures/eyes/` |
 
 All slots advance together using the same **Frames per Swap** and **Start Frame**.
+
+<img width="437" height="852" alt="Screenshot 2026-03-28 185343" src="https://github.com/user-attachments/assets/7fe55fa6-997c-4faa-a379-a5b04bdf0762" />
 
 ---
 
