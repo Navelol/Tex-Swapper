@@ -79,7 +79,7 @@ Click **Apply Texture Swap**. Scrub or play the timeline — textures will swap 
 
 All slots advance together using the same **Frames per Swap** and **Start Frame**.
 
-<img width="437" height="852" alt="Screenshot 2026-03-28 185343" src="https://github.com/user-attachments/assets/7fe55fa6-997c-4faa-a379-a5b04bdf0762" />
+<img height="600" alt="Screenshot 2026-03-28 185343" src="https://github.com/user-attachments/assets/7fe55fa6-997c-4faa-a379-a5b04bdf0762" />
 
 ---
 
