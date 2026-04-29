@@ -18,7 +18,10 @@ texture_swap_data = {}
 # -------------------------------------------------------------------
 # Frame change handler
 # -------------------------------------------------------------------
+@bpy.app.handlers.persistent
 def texture_swap_handler(scene):
+    if not texture_swap_data:
+        return
     cf = scene.frame_current
     sf = texture_swap_data["start_frame"]
     fps = texture_swap_data["frames_per_swap"]
@@ -47,6 +50,59 @@ def texture_swap_handler(scene):
                 if node and node.image != imgs[idx]:
                     node.image = imgs[idx]
         mat.node_tree.update_tag()
+
+# -------------------------------------------------------------------
+# Restore runtime state when a .blend file is opened
+# -------------------------------------------------------------------
+@bpy.app.handlers.persistent
+def texture_swap_load_post(filepath, *args):
+    scene = bpy.context.scene
+    if not hasattr(scene, 'texture_swap_settings'):
+        return
+    s = scene.texture_swap_settings
+    if not s.configs:
+        return
+
+    all_configs = []
+    longest = 0
+    for cfg in s.configs:
+        if not cfg.object_ptr or not cfg.material_enum:
+            continue
+        entries = []
+        for m in cfg.node_mappings:
+            node_name = m.node_name.strip()
+            folder = bpy.path.abspath(m.folder_path)
+            if not node_name or not os.path.isdir(folder):
+                continue
+            imgs = []
+            for fn in sorted(os.listdir(folder)):
+                if fn.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.exr')):
+                    try:
+                        img = bpy.data.images.load(os.path.join(folder, fn), check_existing=True)
+                        imgs.append(img)
+                    except Exception:
+                        pass
+            if imgs:
+                entries.append({"node_name": node_name, "images": imgs})
+                longest = max(longest, len(imgs))
+        if entries:
+            all_configs.append({
+                "object_name":   cfg.object_ptr.name,
+                "material_name": cfg.material_enum,
+                "nodes":         entries,
+            })
+
+    if not all_configs:
+        return
+
+    texture_swap_data.update({
+        "configs":         all_configs,
+        "frames_per_swap": s.frames_per_swap,
+        "start_frame":     s.start_frame,
+        "end_frame":       s.start_frame + s.frames_per_swap * longest - 1,
+    })
+    if texture_swap_handler not in bpy.app.handlers.frame_change_post:
+        bpy.app.handlers.frame_change_post.append(texture_swap_handler)
 
 # -------------------------------------------------------------------
 # Per-node mapping
@@ -363,6 +419,7 @@ def register():
     for c in classes:
         bpy.utils.register_class(c)
     bpy.types.Scene.texture_swap_settings = bpy.props.PointerProperty(type=TextureSwapSettings)
+    bpy.app.handlers.load_post.append(texture_swap_load_post)
 
 def unregister():
     for c in reversed(classes):
@@ -370,6 +427,8 @@ def unregister():
     del bpy.types.Scene.texture_swap_settings
     if texture_swap_handler in bpy.app.handlers.frame_change_post:
         bpy.app.handlers.frame_change_post.remove(texture_swap_handler)
+    if texture_swap_load_post in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(texture_swap_load_post)
 
 if __name__ == "__main__":
     register()
