@@ -39,17 +39,34 @@ def texture_swap_handler(scene):
             continue
 
         for entry in cfg["nodes"]:
-            imgs = entry["images"]
-            if 0 <= idx < len(imgs):
-                node = next(
-                    (n for n in mat.node_tree.nodes
-                     if n.type == 'TEX_IMAGE' and
-                     (n.label == entry["node_name"] or n.name == entry["node_name"])),
-                    None
-                )
-                if node and node.image != imgs[idx]:
-                    node.image = imgs[idx]
-        mat.node_tree.update_tag()
+            paths = entry["image_paths"]
+            if not (0 <= idx < len(paths)):
+                continue
+            node = next(
+                (n for n in mat.node_tree.nodes
+                 if n.type == 'TEX_IMAGE' and
+                 (n.label == entry["node_name"] or n.name == entry["node_name"])),
+                None
+            )
+            if not node or not node.image:
+                # The base Image datablock should already have been assigned
+                # once, outside of this handler (see apply operator / load_post).
+                continue
+
+            target_path = paths[idx]
+            # IMPORTANT: never reassign node.image to a *different* Image
+            # datablock from inside this handler. During animation rendering,
+            # this handler fires from inside the depsgraph's own per-frame
+            # update (BKE_scene_graph_update_for_newframe_ex), and changing
+            # which ID a node points to forces DEG_relations_tag_update while
+            # the graph is already mid-evaluation — that's what produced the
+            # EXCEPTION_ACCESS_VIOLATION crash. Instead, keep the same Image
+            # datablock and just repoint its source file and reload the
+            # pixels: that only tags the image's own data for a copy-on-write
+            # update, never the graph's relations, so it's safe mid-render.
+            if bpy.path.abspath(node.image.filepath) != target_path:
+                node.image.filepath = target_path
+                node.image.reload()
 
 # -------------------------------------------------------------------
 # Restore runtime state when a .blend file is opened
@@ -74,17 +91,34 @@ def texture_swap_load_post(filepath, *args):
             folder = bpy.path.abspath(m.folder_path)
             if not node_name or not os.path.isdir(folder):
                 continue
-            imgs = []
+            paths = []
             for fn in sorted(os.listdir(folder)):
                 if fn.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.exr')):
+                    paths.append(os.path.join(folder, fn))
+            if not paths:
+                continue
+
+            # Assign the base Image datablock once, right here at file-load
+            # time (never from inside texture_swap_handler — see the note
+            # there). The handler will only ever repoint this same
+            # datablock's filepath and reload() it.
+            mat = next((sl.material for sl in cfg.object_ptr.material_slots
+                        if sl.material and sl.material.name == cfg.material_enum), None)
+            if mat and mat.use_nodes:
+                node = next(
+                    (n for n in mat.node_tree.nodes
+                     if n.type == 'TEX_IMAGE' and
+                     (n.label == node_name or n.name == node_name)),
+                    None
+                )
+                if node and not node.image:
                     try:
-                        img = bpy.data.images.load(os.path.join(folder, fn), check_existing=True)
-                        imgs.append(img)
+                        node.image = bpy.data.images.load(paths[0], check_existing=True)
                     except Exception:
                         pass
-            if imgs:
-                entries.append({"node_name": node_name, "images": imgs})
-                longest = max(longest, len(imgs))
+
+            entries.append({"node_name": node_name, "image_paths": paths})
+            longest = max(longest, len(paths))
         if entries:
             all_configs.append({
                 "object_name":   cfg.object_ptr.name,
@@ -249,6 +283,7 @@ class OBJECT_OT_apply_texture_swap(bpy.types.Operator):
                 mat_obj = cfg.object_ptr
                 mat = next((sl.material for sl in mat_obj.material_slots
                             if sl.material and sl.material.name == cfg.material_enum), None)
+                match = None
                 if mat and mat.use_nodes:
                     match = next(
                         (n for n in mat.node_tree.nodes
@@ -262,19 +297,28 @@ class OBJECT_OT_apply_texture_swap(bpy.types.Operator):
                 if not node_name or not os.path.isdir(folder):
                     self.report({'ERROR'}, f"Slot {i+1}: bad node name '{node_name}' or folder not found")
                     return {'CANCELLED'}
-                imgs = []
+                paths = []
                 for fn in sorted(os.listdir(folder)):
                     if fn.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.exr')):
-                        try:
-                            img = bpy.data.images.load(os.path.join(folder, fn), check_existing=True)
-                            imgs.append(img)
-                        except Exception:
-                            pass
-                if not imgs:
+                        paths.append(os.path.join(folder, fn))
+                if not paths:
                     self.report({'ERROR'}, f"Slot {i+1}: no images found for node '{node_name}'")
                     return {'CANCELLED'}
-                entries.append({"node_name": node_name, "images": imgs})
-                longest = max(longest, len(imgs))
+
+                # Assign the base Image datablock once, right here — a normal
+                # operator call, never from inside texture_swap_handler.
+                # The handler only ever repoints this same datablock's
+                # filepath and reload()s it (see the note in the handler for
+                # why reassigning node.image mid-render is what crashed
+                # Blender).
+                if match:
+                    try:
+                        match.image = bpy.data.images.load(paths[0], check_existing=True)
+                    except Exception:
+                        pass
+
+                entries.append({"node_name": node_name, "image_paths": paths})
+                longest = max(longest, len(paths))
 
             all_configs.append({
                 "object_name":   cfg.object_ptr.name,
